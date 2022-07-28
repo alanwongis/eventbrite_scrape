@@ -64,8 +64,12 @@ GREY_TERMS = ["cruise", "ride", "ford", "concours", "drive", "parking"]
 
 save_raw_dump = False  # flag to save the raw scrape
 
-auth_token = open("eventbrite_api_key.txt",
-                  "r").read()  # need a developer API key from Eventbrite. See "https://www.eventbrite.com/platform/api#/introduction/authentication"
+try:
+    auth_token = open("eventbrite_api_key.txt",
+                      "r").read()  # need a developer API key from Eventbrite. See "https://www.eventbrite.com/platform/api#/introduction/authentication"
+except:
+    print('file "eventbrite_api_key.txt" missing, need a developer API key from Eventbrite. See "https://www.eventbrite.com/platform/api#/introduction/authentication"')
+    exit(0)
 
 my_headers = {'Authorization': f'Bearer {auth_token}'}
 
@@ -195,7 +199,7 @@ def convert(raw_entry):
 
 
 def white_score(st):
-    """counts the number of white term occurences"""
+    """counts the number of white term occurrences"""
     c = 0
     for t in WHITE_TERMS:
         c += st.count(t)
@@ -203,7 +207,7 @@ def white_score(st):
 
 
 def black_score(st):
-    """counts the number of white term occurences"""
+    """counts the number of white term occurrences"""
     c = 0
     for t in BLACK_TERMS:
         c += st.count(t)
@@ -316,6 +320,7 @@ def main():
         if w_score > b_score and w_score >= WHITE_SCORE_THRESHOLD:
             switch_from_grey.append(ev)
             print("(found)")
+            logging.info("Changed to whitelist-%s" % ev["url"])
         else:
             print()
     print()
