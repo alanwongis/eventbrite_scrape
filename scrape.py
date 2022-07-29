@@ -347,7 +347,10 @@ def main():
     converted = []
     for n, e in enumerate(unique_events.values()):
         converted.append(convert(e))
-        print(n + 1)
+        print(n + 1, end=" ")
+        if (n+1) % 20 == 0:
+            print()
+
     print()
 
     # save the converted events
@@ -369,7 +372,8 @@ def main():
     for n, e in enumerate(unique_events.values()):
         converted.append(convert(e))
         print(n + 1, end=" ")
-    print()
+        if (n+1) % 20 == 0:
+            print()
 
     # save the converted events
     print("Saving %i grey list results as 'grey_eventbrite_events.json'" % len(converted))

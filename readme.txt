@@ -1,3 +1,15 @@
+scape.py - scrapes the Eventbrite site for car related events
+
+Dependencies:
+    - a developer api key from Eventbrite, it needs to be saved in a file called "eventbrite_api_key.txt"
+    - requires the Requests and BeautifulSoup python libraries
+
+Usage:
+    python scrape.py
+
+Output:
+    a json file called 'eventbrite_events.json' where the format is the following:
+
 /* output of the scraper is a json list of Event objects
 
 i.e [ EventObject, EventObject, ...]
@@ -21,18 +33,6 @@ where an EventObject is:
 "venue_country"     : "US/Canada/etc."
 "venue_code"        : "ZIP/postal code/etc",
 
-"_raw_data": {
-    
-    /* the raw data scraped from the site.
-    For example, the some of the following
-    comes from a scrape of an eventbrite 
-    search entry */
-    
-    "id"                : "event id used for their API",
-    "primary_venue_id"  : "venue id",
-    "tickets_url"       : ""
-    /* ...etc */
-    
     
 }
 
