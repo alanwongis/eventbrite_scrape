@@ -1,7 +1,19 @@
 #!/bin/python3
 """ scrapes the Eventbrite.com website for car related events
 
-    Version date: July 10, 2022
+    Using automotive related urls on Eventbrite's website, this scrapes for
+    car related events on those pages. However, non-car related events need to
+    be filtered out. So on the first pass, easily rejected events(definitely
+    non-car events) are removed and we are left with white-listed(car-related)
+    and grey-listed(possibly car-related) events. Then the grey-listed events
+    are scored further for car terms and any that pass are added to the white-list.
+
+    On the second pass, detailed  event information is retrieved using Eventbrite's
+    api and the json is formed from data. Whitelisted and greylisted events are saved to
+    "eventbrite_events.json" and "grey_eventbrite_events.json" respectively.
+
+
+    Version date: Sept 5, 2023
     Licence: MIT
     Copyright: Alan Wong
 
@@ -16,8 +28,10 @@ import time
 import requests
 from bs4 import BeautifulSoup
 
+logging.basicConfig(filename='scrape.log', level=logging.WARNING)
+
 START_PAGE_NUM = 1
-MAX_SEARCH_PAGES = 60  # set this to the max pages to scan on Eventbrite
+MAX_SEARCH_PAGES = 6  # set this to the max pages to scan on Eventbrite
 SEARCH_URLS = [
     "https://www.eventbrite.com/d/united-states/auto-boat-and-air--events/?page=",
     "https://www.eventbrite.com/d/canada/auto-boat-and-air--events/automotive/?page=",
@@ -25,7 +39,7 @@ SEARCH_URLS = [
     "https://www.eventbrite.com/d/australia/auto-boat-and-air--events/automotive/?page="]
 
 # filtering events uses keywords to decide to which events are car related events
-# However some only contain keywords which are ambiguous (e.g. "Cruise in Chigago") which
+# However some only contain keywords which are ambiguous (e.g. "Cruise in Chicago") which
 # could be car related "Cruise down the Boulevard" vs "Cruise down the Mississippi"
 # Until we implement better filter or have a way top curate the results, we'll
 # exclude these items
@@ -64,16 +78,18 @@ GREY_TERMS = ["cruise", "ride", "ford", "concours", "drive", "parking"]
 
 save_raw_dump = False  # flag to save the raw scrape
 
+
+# (The following are for working with Eventbrite's api)
+
+# need a developer API key from Eventbrite. See "https://www.eventbrite.com/platform/api#/introduction/authentication"
 try:
-    auth_token = open("eventbrite_api_key.txt",
-                      "r").read()  # need a developer API key from Eventbrite. See "https://www.eventbrite.com/platform/api#/introduction/authentication"
+    auth_token = open("eventbrite_api_key.txt", "r").read()
 except:
-    print('file "eventbrite_api_key.txt" missing, need a developer API key from Eventbrite. See "https://www.eventbrite.com/platform/api#/introduction/authentication"')
+    print('file "eventbrite_api_key.txt" missing, need a developer API key from Eventbrite.')
+    print('See "https://www.eventbrite.com/platform/api#/introduction/authentication"')
     exit(0)
 
 my_headers = {'Authorization': f'Bearer {auth_token}'}
-
-logging.basicConfig(filename='scrape.log', level=logging.WARNING)
 
 
 def _get(endpoint):
@@ -86,14 +102,6 @@ def _get(endpoint):
         return data
     except requests.exceptions.HTTPError as errh:
         print(errh)
-
-
-def get_page(url, n):
-    # get the html for the page n of the search
-    response = requests.get(url + str(n))
-    raw_html = response.text
-    soup = BeautifulSoup(raw_html, features='html.parser')
-    return soup
 
 
 def get_ticketing(event_id):
@@ -115,6 +123,14 @@ def get_description_body(event_id):
     return text
 
 
+def get_page(search_url, n):
+    # get the html for the page n of the search
+    response = requests.get(search_url + str(n))
+    raw_html = response.text
+    soup = BeautifulSoup(raw_html, features='html.parser')
+    return soup
+
+
 def convert(raw_entry):
     """returns a dict conforming to the contracted json format
 
@@ -124,7 +140,7 @@ def convert(raw_entry):
 
     converted["name"] = raw_entry["name"]
     converted["description"] = raw_entry["summary"]
-    if converted["description"] == None:  # sometimes summary is missing
+    if converted["description"] is None:  # sometimes summary is missing
         converted["description"] = ""
     converted["bookingUrl"] = raw_entry["url"]
     converted["eventType"] = "public"
@@ -167,14 +183,14 @@ def convert(raw_entry):
             "caption": "",
             "mediaType": "P"}
     except KeyError:
-        logging.info("no image for- %s" % converted["name"].encode("ascii", "ignore"))
+        logging.info(f"no image for- {converted['name'].encode('ascii', 'ignore')}")
         converted["coverImage"] = {}  # no image
 
     try:
         eventbrite_event_id = raw_entry["id"]
         # do a request for ticket info
         raw_ticketing = get_ticketing(eventbrite_event_id)
-        if raw_ticketing["is_free"] == True:
+        if raw_ticketing["is_free"]:
             converted["price"] = {"currency": "USD", "value": "0.00"}
         else:
             converted["price"] = {
@@ -207,7 +223,7 @@ def white_score(st):
 
 
 def black_score(st):
-    """counts the number of white term occurrences"""
+    """counts the number of black term occurrences """
     c = 0
     for t in BLACK_TERMS:
         c += st.count(t)
@@ -215,7 +231,7 @@ def black_score(st):
 
 
 def has_white_term(st):
-    """returns True if the string contains a WHITE_TERMS"""
+    """returns True if the string contains anthing from WHITE_TERMS"""
     st = st.lower()
     is_white = False
     for t in WHITE_TERMS:
@@ -226,7 +242,7 @@ def has_white_term(st):
 
 
 def has_black_term(st):
-    """returns True if the string contains a BLACK_TERMS"""
+    """returns True if the string contains anything from BLACK_TERMS"""
     st = st.lower()
     is_black = False
     for t in BLACK_TERMS:
@@ -237,6 +253,10 @@ def has_black_term(st):
 
 
 def filter_non_car(events):
+    """Removes any non-car related events.
+
+    Returns a whitelist and a greylist of events
+    """
     white_events = []
     grey_events = []
 
@@ -263,7 +283,10 @@ def filter_non_car(events):
 
 
 def extract_entries(html):
-    # on search results page, find the embedded <script> block which holds the auto related events
+    """On search results page, find the embedded <script> block which
+    holds the auto related events.
+
+    Returns a list of those entries"""
     events = html("script")
     for ev in events:
         raw_string = str(ev.string)
@@ -285,7 +308,8 @@ def main():
     car_events = []
     grey_list = []
 
-    # capture the the events from Eventbrite,
+    print("Pass 1")
+    # capture the events from Eventbrite,
     # doing an initial pass on  filtering them
     # based on title into the white list or
     # grey list
@@ -303,7 +327,7 @@ def main():
                 car_events.extend(white_events)
                 grey_list.extend(grey_events)
                 print('page - %i, %i possible events' % (num, len(white_events)))
-                time.sleep(2)
+                time.sleep(2)  # crude rate limiting
                 num += 1
         print("End of pages\n")
         print()
@@ -320,7 +344,7 @@ def main():
         if w_score > b_score and w_score >= WHITE_SCORE_THRESHOLD:
             switch_from_grey.append(ev)
             print("(found)")
-            logging.info("Changed to whitelist-%s" % ev["url"])
+            logging.info(f"Changed to whitelist-{ev['url']}")
         else:
             print()
     print()
@@ -343,7 +367,7 @@ def main():
         unique_events[ev["id"]] = ev
 
     # convert to contracted json format
-    print("converting and retrieving ticket info from Eventbrite on %i items...(may take a while)" % len(unique_events))
+    print(f"Converting and retrieving ticket info from Eventbrite on {len(unique_events)} items...(may take a while)")
     converted = []
     for n, e in enumerate(unique_events.values()):
         converted.append(convert(e))
@@ -354,29 +378,30 @@ def main():
     print()
 
     # save the converted events
-    print("Saving %i scraped results as 'eventbrite_events.json'" % len(converted))
+    print(f"Saving{len(converted)} scraped results as 'eventbrite_events.json'")
     event_file = open("eventbrite_events.json", "w", encoding="utf-8")
     json.dump(converted, event_file)
     event_file.close()
     print(len(converted), " events saved.\n")
 
-    # PROCESS AND SAVE GREYIST EVENTS FOR REVIEW
+    # PROCESS AND SAVE GREYLIST EVENTS FOR REVIEW
     print("working on grey list...")
     unique_events = {}
     for ev in grey_list:
         unique_events[ev["id"]] = ev
 
     # convert to contracted json format
-    print("converting and retrieving ticket info from Eventbrite. %i items...(may take a while)" % len(unique_events))
+    print(f"Converting and retrieving ticket info from Eventbrite. {len(unique_events)} items...(may take a while)")
     converted = []
     for n, e in enumerate(unique_events.values()):
         converted.append(convert(e))
         print(n + 1, end=" ")
         if (n+1) % 20 == 0:
             print()
+    print()
 
     # save the converted events
-    print("Saving %i grey list results as 'grey_eventbrite_events.json'" % len(converted))
+    print(f"Saving {len(converted)} grey list results as 'grey_eventbrite_events.json'")
     grey_event_file = open("grey_eventbrite_events.json", "w", encoding="utf-8")
     json.dump(converted, grey_event_file)
     grey_event_file.close()
@@ -388,11 +413,9 @@ def main():
         try:
             f.write(unique_events[k]["name"] + "\n")
         except:
-            logging.info("problem saving name: %s", k)
+            logging.info(f"problem saving name: {k}")
     f.close()
 
 
 if __name__ == "__main__":
     main()
-
-
