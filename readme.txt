@@ -32,8 +32,8 @@ where an EventObject is:
 "venue_region"      : "State/province/etc.",
 "venue_country"     : "US/Canada/etc."
 "venue_code"        : "ZIP/postal code/etc",
-
-    
+"event_id"          : "the Eventbrite event id"
+"event_rest"        : "the Eventbrite REST API url"
 }
 
 

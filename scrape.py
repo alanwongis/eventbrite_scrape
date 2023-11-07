@@ -31,7 +31,7 @@ from bs4 import BeautifulSoup
 logging.basicConfig(filename='scrape.log', level=logging.WARNING)
 
 START_PAGE_NUM = 1
-MAX_SEARCH_PAGES = 6  # set this to the max pages to scan on Eventbrite
+MAX_SEARCH_PAGES = 60  # set this to the max pages to scan on Eventbrite
 SEARCH_URLS = [
     "https://www.eventbrite.com/d/united-states/auto-boat-and-air--events/?page=",
     "https://www.eventbrite.com/d/canada/auto-boat-and-air--events/automotive/?page=",
@@ -52,7 +52,7 @@ WHITE_SCORE_THRESHOLD = 3
 # if any of the following terms show up, definitely keep
 WHITE_TERMS = [
     " car ", " car,", " car/", "porsche", "volkswagen", "vehicle", "motorcar", "motorshow",
-    " cars ", "cars,", "car-", "tesla", "motorsport", "jeep", "chrysler", "ferrari", "volvo",
+    "cars ", "cars,", "car-", "tesla", "motorsport", "jeep", "chrysler", "ferrari", "volvo",
     "toyota", " audi ", " alfa ", " lotus", "automotive", "automobile", " vw ", "lexus",
     "nissan", "mercedes", "subaru", " auto ", "truck", "vette", "electric vehicle", "bmw",
     "track day", "speedway", "garage", "summit racing", "demolition", "demo derby", "cadillac",
@@ -211,6 +211,10 @@ def convert(raw_entry):
     converted["webex"] = ""
     converted["socialMedias"] = []
 
+    event_id = raw_entry["id"]
+    converted["event_id"] = event_id
+    converted["event_rest"] =f"https://www.eventbriteapi.com/v3/events/{event_id}/"
+
     return converted
 
 
@@ -288,6 +292,7 @@ def extract_entries(html):
 
     Returns a list of those entries"""
     events = html("script")
+    entries = []
     for ev in events:
         raw_string = str(ev.string)
         if raw_string.find("window.__i18n__") >= 0:
@@ -296,7 +301,7 @@ def extract_entries(html):
             block_end_txt = "window.__REACT_QUERY_STATE__ "
             end = raw_string.find(block_end_txt) - 1
             data = json.loads(raw_string[start:end].strip()[:-1])
-    entries = data["search_data"]["events"]["results"]
+            entries = data["search_data"]["events"]["results"]
     logging.info("%i found on page" % (len(entries)))
     return entries
 
